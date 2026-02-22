@@ -1,31 +1,5 @@
 import { NextResponse } from "next/server";
-import { parse } from "node-html-parser";
-
-const TABS = [
-  "currencies",
-  "crypto",
-  "eib",
-  "future-indices",
-  "commodities",
-  "indices-spots",
-];
-const apiLink = "https://evest.blog/wp-json/wp/v2/posts";
-
-function getTableFromHtml(html) {
-  const doc = parse(html);
-  const table = doc.querySelector("table");
-  if (!table) return { headers: [], rows: [] };
-  const allRows = table.querySelectorAll("tr");
-  const headers = allRows[0]
-    .querySelectorAll("th, td")
-    .map((c) => c.text.trim());
-  const rows = [];
-  for (let i = 1; i < allRows.length; i++) {
-    const cells = allRows[i].querySelectorAll("td").map((c) => c.text.trim());
-    rows.push(cells);
-  }
-  return { headers, rows };
-}
+import { getSpreads, TABS } from "@/lib/spreads";
 
 export async function GET(request) {
   const tab =
@@ -35,24 +9,18 @@ export async function GET(request) {
   }
 
   try {
-    const response = await fetch(`${apiLink}?slug=${encodeURIComponent(tab)}`);
-    if (!response.ok) {
+    const data = await getSpreads(tab);
+    return NextResponse.json({ tab, data });
+  } catch (err) {
+    if (err.message === "WordPress request failed") {
       return NextResponse.json(
         { error: "WordPress request failed" },
         { status: 502 },
       );
     }
-
-    const posts = await response.json();
-
-    const html = posts[0].content?.rendered ?? "";
-    const { headers, rows } = getTableFromHtml(html);
-    if (headers.length === 0 && rows.length === 0) {
+    if (err.message === "No table in post") {
       return NextResponse.json({ error: "No table in post" }, { status: 404 });
     }
-
-    return NextResponse.json({ tab, data: { headers, rows } });
-  } catch (err) {
     return NextResponse.json(
       { error: "Something went wrong", message: err.message },
       { status: 500 },

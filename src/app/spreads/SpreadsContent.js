@@ -1,54 +1,19 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Error from "../error";
-import Loading from "../loading";
+import { TABS } from "@/lib/constants";
 
-const TABS = [
-  "currencies",
-  "crypto",
-  "eib",
-  "future-indices",
-  "commodities",
-  "indices-spots",
-];
-
-export default function SpreadsContent() {
+export default function SpreadsContent({
+  initialDataByTab = {},
+  initialErrorsByTab = {},
+}) {
   const [activeTab, setActiveTab] = useState("currencies");
-  const [status, setStatus] = useState("loading");
-  const [data, setData] = useState(null);
-  const [errorMessage, setErrorMessage] = useState("");
 
-  async function fetchSpreads(tab) {
-    setStatus("loading");
-    setErrorMessage("");
-    try {
-      const res = await fetch(`/api/spreads?tab=${encodeURIComponent(tab)}`);
-      const json = await res.json();
-      if (!res.ok) {
-        setErrorMessage(json.error || "Request failed");
-        setStatus("error");
-        setData(null);
-        return;
-      }
-      if (!json.data?.headers?.length && !json.data?.rows?.length) {
-        setErrorMessage("No table data");
-        setStatus("error");
-        setData(null);
-        return;
-      }
-      setData(json.data);
-      setStatus("success");
-    } catch (err) {
-      setErrorMessage(err.message || "Something went wrong");
-      setStatus("error");
-      setData(null);
-    }
-  }
-
-  useEffect(() => {
-    fetchSpreads(activeTab);
-  }, [activeTab]);
+  const data = initialDataByTab[activeTab] ?? null;
+  const errorMessage = initialErrorsByTab[activeTab] ?? null;
+  const hasError = Boolean(errorMessage);
+  const hasData = data?.headers?.length > 0 || data?.rows?.length > 0;
 
   return (
     <>
@@ -68,11 +33,14 @@ export default function SpreadsContent() {
         ))}
       </div>
 
-      {status === "loading" && <Loading />}
+      {hasError && (
+        <Error
+          error={{ message: errorMessage }}
+          reset={() => {}}
+        />
+      )}
 
-      {status === "error" && <Error error={{ message: errorMessage }} reset={() => fetchSpreads(activeTab)} />}
-
-      {status === "success" && data && (
+      {!hasError && hasData && data && (
         <div className="rounded border border-zinc-200">
           <table className="min-w-full border-collapse">
             <thead>
@@ -100,6 +68,10 @@ export default function SpreadsContent() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {!hasError && !hasData && activeTab in initialDataByTab && (
+        <p className="text-zinc-500">No table data for this tab.</p>
       )}
     </>
   );
